@@ -58,4 +58,6 @@ Mỗi hành động phi pháp sẽ làm tăng **Heat Level** (Độ nhiệt).
 - Không cần cài đặt thêm thư viện (Sử dụng Pure HTML/CSS/JS).
 
 ---
+# link demo https://maiyeuem24092012.github.io/Shadow-Terminal/
+---
 *Phần mềm này được tạo ra cho mục đích giải trí và giáo dục giao diện Terminal. Đừng cố gắng hack vệ tinh thật!*
