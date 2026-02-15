@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>SHADOW TERMINAL - V4.5 (WORLD DOMINATION)</title>
+    <style>
+        body { background-color: #050505; color: #ffffff; font-family: 'Courier New', monospace; margin: 0; padding: 20px; overflow: hidden; height: 95vh; display: flex; flex-direction: column; }
+        body::before { content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 255, 0, 0.03)); z-index: 10; background-size: 100% 2px, 3px 100%; pointer-events: none; }
+        #terminal-output { flex-grow: 1; overflow-y: auto; white-space: pre-wrap; text-shadow: 0 0 8px rgba(0, 255, 0, 0.3); padding-right: 250px; }
+        .line { margin-bottom: 5px; font-size: 14px; line-height: 1.4; }
+        .rainbow-text { background: linear-gradient(to right, #00ff00, #00ffff, #00ff00); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold; animation: rainbow-scroll 3s linear infinite; }
+        @keyframes rainbow-scroll { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
+        .header { color: #00ff00; font-weight: bold; border-left: 4px solid #00ff00; padding-left: 10px; margin: 10px 0; }
+        .money-line { color: #ffff00; font-weight: bold; }
+        .warning { color: #ff3333; font-weight: bold; animation: blink 0.8s infinite; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+        
+        /* Bảng chỉ số */
+        .stats-panel { position: absolute; top: 20px; right: 20px; width: 220px; border: 1px solid #333; padding: 15px; background: rgba(0,0,0,0.9); z-index: 100; border-radius: 5px; box-shadow: 0 0 15px rgba(0,255,0,0.1); }
+        .heat-bar { width: 100%; height: 12px; background: #222; border: 1px solid #444; margin-top: 5px; position: relative; }
+        #heat-fill { height: 100%; width: 0%; background: #00ff00; transition: 0.5s ease; }
+        
+        /* Bảng xếp hạng */
+        .leaderboard { margin-top: 15px; font-size: 11px; border-top: 1px solid #333; padding-top: 10px; }
+        .leaderboard-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+
+        .input-area { display: flex; align-items: center; border-top: 1px solid #222; padding-top: 15px; }
+        input { background: transparent; border: none; color: #00ff00; font-family: inherit; font-size: 16px; outline: none; flex-grow: 1; }
+        .shake-heavy { animation: shake-vibe 0.1s infinite; }
+        @keyframes shake-vibe { 0% { transform: translate(3px, 3px); } 50% { transform: translate(-3px, -3px); } }
+    </style>
+</head>
+<body id="main-body">
+    <div class="stats-panel">
+        <div class="money-line" style="font-size: 18px;">$ <span id="balance-ui">0</span></div>
+        <div style="font-size: 11px; color: #aaa; margin-top: 5px;">Mining: +$<span id="mining-ui">0</span>/s</div>
+        
+        <div style="color: #ff3333; margin-top: 15px; font-size: 12px; font-weight: bold;">HEAT LEVEL (ĐỘ NHIỆT)</div>
+        <div class="heat-bar"><div id="heat-fill"></div></div>
+        
+        <div id="fw-status" style="font-size: 10px; margin-top: 8px; color: #00ffff;">FIREWALL: OFF</div>
+
+        <div class="leaderboard" id="leaderboard-ui">
+            <div style="color: #00ff00; margin-bottom: 5px;">TOP HACKERS:</div>
+            </div>
+    </div>
+
+    <div id="terminal-output"></div>
+    <div class="input-area">
+        <span style="color: #00ff00; margin-right: 12px; font-weight: bold;">[GHOST@SHADOW]~#</span>
+        <input type="text" id="terminal-input" autofocus spellcheck="false" autocomplete="off">
+    </div>
+
+    <script>
+        const input = document.getElementById('terminal-input');
+        const output = document.getElementById('terminal-output');
+        const body = document.getElementById('main-body');
+        
+        // Game State
+        let balance = 0;
+        let heat = 0;
+        let miningPower = 0;
+        let swatTimerBase = 30;
+        let hasFirewall = false;
+        let accessLevel = "Guest";
+        let menuMode = "";
+        let captureInterval = null;
+
+        let leaderboard = [
+            { name: "AcidBurn", cash: 450000 },
+            { name: "ZeroCool", cash: 220000 },
+            { name: "CerealKiller", cash: 95000 },
+            { name: "Phantom", cash: 40000 },
+            { name: "You", cash: 0 }
+        ];
+
+        const shopItems = {
+            "1": { name: "Deep-Cleaner", price: 5500, desc: "Xóa sạch Heat về 0%.", effect: () => { heat = 0; return "Dấu vết đã bị xóa sạch."; } },
+            "2": { name: "Quantum-Firewall", price: 25000, desc: "Chống Hacker tấn công (Random Event).", effect: () => { hasFirewall = true; document.getElementById('fw-status').innerText="FIREWALL: PROTECTED"; return "Tường lửa đã kích hoạt."; } },
+            "3": { name: "Auto-Miner V1", price: 12000, desc: "Đào tiền thụ động +$80/s.", effect: () => { miningPower += 80; return "Máy đào đã bắt đầu chạy."; } },
+            "4": { name: "Proxy-Elite", price: 8000, desc: "Tăng thời gian thoát FBI lên 60s.", effect: () => { swatTimerBase = 60; return "Proxy đã chuyển vùng quốc tế."; } },
+            "5": { name: "SATELLITE ACCESS", price: 500000, desc: "Vụ hack thế kỷ - CHIẾM QUYỀN VỆ TINH.", effect: () => { endGame(); return "HỆ THỐNG VỆ TINH ĐÃ BỊ CHIẾM QUYỀN!"; } }
+        };
+
+        function updateUI() {
+            document.getElementById('balance-ui').innerText = balance.toLocaleString();
+            document.getElementById('mining-ui').innerText = miningPower;
+            const hFill = document.getElementById('heat-fill');
+            hFill.style.width = heat + "%";
+            hFill.style.background = heat > 75 ? "#ff0000" : (heat > 45 ? "#ffff00" : "#00ff00");
+            
+            // Cập nhật Leaderboard
+            leaderboard.find(x => x.name === "You").cash = balance;
+            leaderboard.sort((a, b) => b.cash - a.cash);
+            const lbUI = document.getElementById('leaderboard-ui');
+            lbUI.innerHTML = '<div style="color: #00ff00; margin-bottom: 5px;">TOP HACKERS:</div>';
+            leaderboard.forEach((h, i) => {
+                lbUI.innerHTML += `<div class="leaderboard-row"><span>${i+1}. ${h.name}</span><span>$${h.cash.toLocaleString()}</span></div>`;
+            });
+
+            if (heat >= 100) {
+                body.innerHTML = "<div class='win-screen' style='color:red; text-align:center; padding-top:20%; font-size:40px;'>BẠN ĐÃ BỊ TÓM!<br><span style='font-size:20px'>Cảnh sát mạng đã lần ra IP của bạn.</span></div>";
+            }
+        }
+
+        async function typePrint(text, type = "normal") {
+            const line = document.createElement('div');
+            line.className = 'line ' + type;
+            output.appendChild(line);
+            for (let char of text) {
+                line.innerText += char;
+                output.scrollTop = output.scrollHeight;
+                await new Promise(res => setTimeout(res, 5));
+            }
+        }
+
+        // Đào tiền
+        setInterval(() => { if(miningPower > 0) { balance += miningPower; updateUI(); } }, 1000);
+
+        // SỰ KIỆN NGẪU NHIÊN (Random Events)
+        setInterval(async () => {
+            if (balance > 10000 && Math.random() < 0.15) {
+                if (Math.random() < 0.5 && !hasFirewall) {
+                    const stolen = Math.floor(balance * 0.25);
+                    balance -= stolen;
+                    await typePrint(`[CẢNH BÁO] Hacker khác đã xâm nhập và lấy trộm $${stolen}!`, "warning");
+                } else if (Math.random() > 0.8) {
+                    await typePrint("[HỆ THỐNG] Thị trường Crypto sụp đổ, máy đào giảm hiệu suất tạm thời.", "warning");
+                }
+                updateUI();
+            }
+        }, 25000);
+
+        function endGame() {
+            body.innerHTML = "<div style='color:#00ff00; text-align:center; padding-top:15%; font-size:40px;' class='rainbow-text'>MISSION ACCOMPLISHED<br><span style='font-size:20px'>BẠN ĐÃ CHIẾM QUYỀN VỆ TINH VÀ TRỞ THÀNH HUYỀN THOẠI.</span></div>";
+        }
+
+        input.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                const fullCmd = input.value.trim();
+                const args = fullCmd.split(' ');
+                const cmd = args[0].toLowerCase();
+                input.value = ''; input.disabled = true;
+
+                if (menuMode === "market") {
+                    if (cmd === 'exit') { menuMode = ""; await typePrint("Đã thoát Market."); }
+                    else if (shopItems[cmd]) {
+                        if (balance >= shopItems[cmd].price) {
+                            balance -= shopItems[cmd].price;
+                            let msg = shopItems[cmd].effect();
+                            await typePrint(`ĐÃ MUA: ${shopItems[cmd].name}. ${msg}`, "rainbow-text");
+                            updateUI();
+                        } else await typePrint("LỖI: Tiền của bạn không đủ!", "warning");
+                    }
+                } else {
+                    const echo = document.createElement('div');
+                    echo.innerHTML = `<span style="color:#00ff00">[GHOST]~#</span> ${fullCmd}`;
+                    output.appendChild(echo);
+
+                    switch(cmd) {
+                        case 'help':
+                            await typePrint("--- DANH SÁCH LỆNH ---", "header");
+                            await typePrint("> hack internet | > market | > status\n> list-user | > hack-smartphone | > top");
+                            break;
+                        case 'top': 
+                            await typePrint("--- BẢNG XẾP HẠNG TOÀN CẦU ---", "header");
+                            leaderboard.forEach((h, i) => typePrint(`${i+1}. ${h.name.padEnd(12)} : $${h.cash.toLocaleString()}`, "money-line"));
+                            break;
+                        case 'status':
+                            await typePrint(`SỐ DƯ: $${balance} | ĐÀO: $${miningPower}/s | HEAT: ${heat}%`, "money-line");
+                            break;
+                        case 'market':
+                            if (accessLevel === "Guest") await typePrint("Hãy 'hack internet' để truy cập DeepWeb.", "warning");
+                            else {
+                                menuMode = "market";
+                                await typePrint("--- BLACK MARKET (PRICES ARE FINAL) ---", "header");
+                                for(let k in shopItems) await typePrint(`${k}. ${shopItems[k].name} ($${shopItems[k].price.toLocaleString()}): ${shopItems[k].desc}`);
+                                await typePrint("Gõ số để chọn hoặc 'exit'.");
+                            }
+                            break;
+                        case 'hack-smartphone':
+                            if (accessLevel === "Guest") await typePrint("Cần có internet.");
+                            else {
+                                await typePrint("Dò tìm tín hiệu Bluetooth xung quanh...");
+                                heat += 10; updateUI();
+                                await typePrint("Thành công. Lệnh sẵn sàng: 'hack-wallet'", "rainbow-text");
+                            }
+                            break;
+                        case 'hack-wallet':
+                            let stolen = Math.floor(Math.random() * 5000) + 1000;
+                            // Vận may: Whale Wallet
+                            if (Math.random() < 0.05) { 
+                                stolen = 60000; heat += 30; 
+                                await typePrint("!!! JACKPOT !!! BẠN VỪA HACK TRÚNG MỘT TỶ PHÚ!", "rainbow-text");
+                            }
+                            balance += stolen; heat += 15;
+                            await typePrint(`+$${stolen} đã được chuyển về ví ẩn danh.`, "money-line");
+                            updateUI();
+                            break;
+                        case 'hack':
+                            if (args[1] === 'internet') { accessLevel = "Internet"; await typePrint("ACCESS GRANTED. Market Unlocked."); }
+                            else if (args[1] === 'fbi') {
+                                let t = swatTimerBase;
+                                captureInterval = setInterval(() => { 
+                                    t--; if (t <= 10) body.classList.add('shake-heavy');
+                                    if (t <= 0) body.innerHTML = "<h1>BUSTED!</h1>"; 
+                                }, 1000);
+                                await typePrint(`ĐANG TẤN CÔNG FBI! CÒN ${t}S ĐỂ 'hide -ip'`, "warning");
+                            }
+                            break;
+                        case 'hide':
+                            if (args[1] === '-ip') { clearInterval(captureInterval); body.classList.remove('shake-heavy'); await typePrint("ĐÃ ẨN IP."); }
+                            break;
+                        case 'clear': output.innerHTML = ''; break;
+                        default: await typePrint("Lệnh không hợp lệ.");
+                    }
+                }
+                input.disabled = false; input.focus();
+            }
+        });
+
+        window.onload = async () => {
+            await typePrint("SHADOW TERMINAL V4.5 | SYSTEM LOADED", "rainbow-text");
+            updateUI();
+            await typePrint("Gõ 'help' để xem danh sách lệnh.");
+        };
+    </script>
+</body>
+</html>
